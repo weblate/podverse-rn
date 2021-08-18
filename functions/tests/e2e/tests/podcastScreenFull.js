@@ -39,18 +39,18 @@ const test_podcastScreenFull = async () => {
 
   // test loading spinner displays
 
-  await elementByIdAndClickAndTest('podcast_screen_settings_icon_button', 'podcast_screen_toggle_download_limit_switch')
+  // await elementByIdAndClickAndTest('podcast_screen_settings_icon_button', 'podcast_screen_toggle_download_limit_switch')
 
-  await elementByIdClick('podcast_screen_toggle_download_limit_switch')
+  // await elementByIdClick('podcast_screen_toggle_download_limit_switch')
 
-  await performScroll(scrollDownKey, 2)
+  // await performScroll(scrollDownKey, 2)
 
-  await clearTextField('podcast_screen_downloaded_episode_limit_count_text_input')
-  await sendKeysToElementById('podcast_screen_downloaded_episode_limit_count_text_input', '10', 'Download Limit 5 > 10')
+  // await clearTextField('podcast_screen_downloaded_episode_limit_count_text_input')
+  // await sendKeysToElementById('podcast_screen_downloaded_episode_limit_count_text_input', '10', 'Download Limit 5 > 10')
 
-  await elementByIdAndClickAndTest('podcast_screen_delete_downloaded_episodes_button', 'dialog_delete_downloaded_episodes_yes')
+  // await elementByIdAndClickAndTest('podcast_screen_delete_downloaded_episodes_button', 'dialog_delete_downloaded_episodes_yes')
 
-  await elementByIdClick('dialog_delete_downloaded_episodes_yes')
+  // await elementByIdClick('dialog_delete_downloaded_episodes_yes')
 
   await elementByIdAndClickAndTest('podcast_screen_description_text', 'podcast_info_screen_view')
   await driver.back()

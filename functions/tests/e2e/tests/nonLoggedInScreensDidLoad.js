@@ -58,6 +58,9 @@ const test_nonLoggedInScreensDidLoadTests = async () => {
   await driver.back()
 
 
+  await elementByIdAndClickAndTest('tab_podcasts_screen', 'podcasts_screen_view')
+
+
     // Search Screen
   await elementByIdAndClickAndTest('nav_search_icon', 'search_screen_view')
   await sendKeysToElementById('search_screen_search_bar', 'Very Bad Wizards', 'Search for Very Bad Wizards')
