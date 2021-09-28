@@ -1,5 +1,5 @@
 import React from 'react'
-import { AccessibilityRole, Pressable, View } from 'react-native'
+import { AccessibilityRole, TouchableOpacity, View } from 'react-native'
 import { PV } from '../resources'
 import { table } from '../styles'
 import { Divider, Text, Icon } from '.'
@@ -30,16 +30,17 @@ export const TableCell = (props: TableCellProps) => {
   const { accessibilityHint, accessibilityLabel, accessibilityRole, children,
     hideChevron = true, includeDivider, testIDPrefix, testIDSuffix,
     onPress = null } = props
-
+  
   return (
     <>
-      <Pressable
+      <TouchableOpacity
+        accessible
         accessibilityHint={accessibilityHint}
         accessibilityLabel={accessibilityLabel}
         accessibilityRole={accessibilityRole}
         onPress={onPress}
         style={table.cellWrapper}
-        testID={`${testIDPrefix}_table_cell_wrapper${testIDSuffix ? `_${testIDSuffix}` : ''}`.prependTestId()}>
+        testID={`${testIDPrefix}_table_cell_wrapper${testIDSuffix ? `_${testIDSuffix}` : ''}`}>
           <View style={{flexDirection:"row", alignItems:"center", justifyContent:"space-between"}}>
             <View style={{flexDirection:"row", alignItems:"center"}}>{children}</View>
             {!hideChevron &&
@@ -50,7 +51,7 @@ export const TableCell = (props: TableCellProps) => {
                 size={30}/>
             }
           </View>
-      </Pressable>
+      </TouchableOpacity>
       {includeDivider && <Divider />}
     </>
   )
