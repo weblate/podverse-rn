@@ -9,12 +9,16 @@ import { processValueTransactionQueue, saveStreamingValueTransactionsToTransacti
 import { translate } from '../lib/i18n'
 import { getStartPodcastFromTime } from '../lib/startPodcastFromTime'
 import { PV } from '../resources'
-import { handleEnrichingPlayerState, hideMiniPlayer, updatePlaybackState } from '../state/actions/player'
+import { removeDownloadedPodcastEpisode } from '../state/actions/downloads'
+import { handleEnrichingPlayerState, playNextChapterOrQueueItem,
+  playPreviousChapterOrReturnToBeginningOfTrack, updatePlaybackState } from '../state/actions/player'
 import { clearChapterPlaybackInfo } from '../state/actions/playerChapters'
+import { updateHistoryItemsIndex } from '../state/actions/userHistoryItem'
 import PVEventEmitter from './eventEmitter'
 import {
   getClipHasEnded,
   getCurrentLoadedTrackId,
+  getLoadedTrackIdByIndex,
   getNowPlayingItemFromQueueOrHistoryOrDownloadedByTrackId,
   getPlaybackSpeed,
   handlePlay,
@@ -58,7 +62,7 @@ const handleSyncNowPlayingItem = async (trackId: string, currentNowPlayingItem: 
   } else {
     const { podcastId } = currentNowPlayingItem
     const startPodcastFromTime = await getStartPodcastFromTime(podcastId)
-
+    
     if (!currentNowPlayingItem.clipId && startPodcastFromTime) {
       debouncedSetPlaybackPosition(startPodcastFromTime, trackId)
     }
@@ -67,7 +71,7 @@ const handleSyncNowPlayingItem = async (trackId: string, currentNowPlayingItem: 
   PVEventEmitter.emit(PV.Events.PLAYER_TRACK_CHANGED)
 
   // Call updateUserPlaybackPosition to make sure the current item is saved as the userNowPlayingItem
-  updateUserPlaybackPosition()
+  await updateUserPlaybackPosition()
 
   handleEnrichingPlayerState(currentNowPlayingItem)
 }
@@ -113,6 +117,7 @@ const syncNowPlayingItemWithTrack = () => {
             clearInterval(retryInterval)
             await handleSyncNowPlayingItem(currentTrackId, currentNowPlayingItem)
             await removeQueueItem(currentNowPlayingItem)
+            PVEventEmitter.emit(PV.Events.QUEUE_HAS_UPDATED)
           }
         }
       }, 1000)
@@ -124,16 +129,25 @@ const syncNowPlayingItemWithTrack = () => {
 
 const resetHistoryItem = async (x: any) => {
   const { position, track } = x
-  const metaEpisode = await getHistoryItemEpisodeFromIndexLocally(track)
+  const loadedTrackId = await getLoadedTrackIdByIndex(track)
+  const metaEpisode = await getHistoryItemEpisodeFromIndexLocally(loadedTrackId)
   if (metaEpisode) {
     const { mediaFileDuration } = metaEpisode
     if (mediaFileDuration > 59 && mediaFileDuration - 59 < position) {
       const setPlayerClipIsLoadedIfClip = false
       const currentNowPlayingItem = await getNowPlayingItemFromQueueOrHistoryOrDownloadedByTrackId(
-        x.track, setPlayerClipIsLoadedIfClip)
+        loadedTrackId, setPlayerClipIsLoadedIfClip)
       if (currentNowPlayingItem) {
+        const autoDeleteEpisodeOnEnd = await AsyncStorage.getItem(PV.Keys.AUTO_DELETE_EPISODE_ON_END)
+        if (autoDeleteEpisodeOnEnd && currentNowPlayingItem?.episodeId) {
+          removeDownloadedPodcastEpisode(currentNowPlayingItem.episodeId)
+        }
+
         const forceUpdateOrderDate = false
-        await addOrUpdateHistoryItem(currentNowPlayingItem, 0, null, forceUpdateOrderDate)
+        const skipSetNowPlaying = false
+        const completed = true
+        await addOrUpdateHistoryItem(currentNowPlayingItem, 0, null, forceUpdateOrderDate, skipSetNowPlaying, completed)
+        await updateHistoryItemsIndex()
       }
     }
   }
@@ -142,8 +156,19 @@ const resetHistoryItem = async (x: any) => {
 const handleQueueEnded = (x: any) => {
   setTimeout(() => {
     (async () => {
-      hideMiniPlayer()
-      await resetHistoryItem(x)
+      /*
+        The app is calling TrackPlayer.reset() on iOS only in loadItemAndPlayTrack
+        because .reset() is the only way to clear out the current item from the queue,
+        but .reset() results in the playback-queue-ended event in firing.
+        We don't want the playback-queue-ended event handling logic below to happen
+        during loadItemAndPlayTrack, so to work around this, I am setting temporary
+        AsyncStorage state so we can know when a queue has actually ended or
+        when the event is the result of .reset() called within loadItemAndPlayTrack.
+      */
+     const preventHandleQueueEnded = await AsyncStorage.getItem(PV.Keys.PLAYER_PREVENT_HANDLE_QUEUE_ENDED)
+     if (!preventHandleQueueEnded) {
+       await resetHistoryItem(x)
+     }
     })()
   }, 0)
 }
@@ -193,10 +218,9 @@ module.exports = async () => {
         } else {
           if (Platform.OS === 'ios') {
             if (x.state === RNTPState.Playing) {
-              updateUserPlaybackPosition()
               await setRateWithLatestPlaybackSpeed()
             } else if (x.state === RNTPState.Paused || RNTPState.Stopped) {
-              updateUserPlaybackPosition()
+              await updateUserPlaybackPosition()
             }
           } else if (Platform.OS === 'android') {
             /*
@@ -217,7 +241,7 @@ module.exports = async () => {
               const rate = await getPlaybackSpeed()
               PVTrackPlayer.setRate(rate)
             } else if (x.state === paused || x.state === stopped) {
-              updateUserPlaybackPosition()
+              await updateUserPlaybackPosition()
             }
           }
         }
@@ -232,11 +256,13 @@ module.exports = async () => {
   })
 
   PVTrackPlayer.addEventListener('remote-jump-backward', () => {
-    playerJumpBackward(PV.Player.jumpBackSeconds)
+    const { jumpBackwardsTime } = getGlobal()
+    playerJumpBackward(jumpBackwardsTime)
   })
 
   PVTrackPlayer.addEventListener('remote-jump-forward', () => {
-    playerJumpForward(PV.Player.jumpSeconds)
+    const { jumpForwardsTime } = getGlobal()
+    playerJumpForward(jumpForwardsTime)
   })
 
   PVTrackPlayer.addEventListener('remote-pause', () => {
@@ -270,6 +296,14 @@ module.exports = async () => {
   PVTrackPlayer.addEventListener('remote-stop', () => {
     PVTrackPlayer.pause()
     PVEventEmitter.emit(PV.Events.PLAYER_REMOTE_STOP)
+  })
+
+  PVTrackPlayer.addEventListener('remote-previous', () => {
+    playPreviousChapterOrReturnToBeginningOfTrack()
+  })
+
+  PVTrackPlayer.addEventListener('remote-next', () => {
+    playNextChapterOrQueueItem()
   })
 
   PVTrackPlayer.addEventListener('remote-duck', (x: any) => {
@@ -309,7 +343,7 @@ module.exports = async () => {
       /* Always save the user playback position whenever the remote-duck event happens.
          I'm not sure if playback-state gets called whenever remote-duck gets called,
          so it's possible we are calling updateUserPlaybackPosition more times than necessary. */
-      updateUserPlaybackPosition()
+      await updateUserPlaybackPosition()
     })()
   })
 }

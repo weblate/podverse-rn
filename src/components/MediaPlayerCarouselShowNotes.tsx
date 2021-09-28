@@ -22,7 +22,7 @@ export class MediaPlayerCarouselShowNotes extends React.PureComponent<Props> {
 
   render() {
     const { navigation, width } = this.props
-    const { player, screenPlayer } = this.global
+    const { player, screenPlayer, screenReaderEnabled } = this.global
     const { episode, nowPlayingItem } = player
     const { isLoading } = screenPlayer
 
@@ -34,7 +34,7 @@ export class MediaPlayerCarouselShowNotes extends React.PureComponent<Props> {
 
     return (
       <ScrollView style={[styles.wrapper, { width }]} transparent>
-        {!!showClipInfo && (
+        {!!showClipInfo && !screenReaderEnabled && (
           <ClipInfoView
             createdAt={mediaRef.createdAt}
             endTime={mediaRef.endTime}
@@ -54,13 +54,15 @@ export class MediaPlayerCarouselShowNotes extends React.PureComponent<Props> {
           <TableSectionSelectors
             disableFilter
             includePadding
-            selectedFilterLabel={translate('Show Notes')}
+            selectedFilterLabel={translate('Episode Summary')}
           />
           {!isLoading && episode && (
             <View>
               {
                 episode?.pubDate &&
                   <Text
+                    accessibilityHint={translate('ARIA HINT - This is the episode publication date')}
+                    accessibilityLabel={readableDate(episode.pubDate)}
                     style={styles.episodePubDate}
                     testID={`${testIDPrefix}_episode_pub_date`}>
                     {readableDate(episode.pubDate)}

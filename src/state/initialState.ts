@@ -22,13 +22,17 @@ const initialTheme: InitialState = {
   errorReportingEnabled: false,
   listenTrackingEnabled: false,
   offlineModeEnabled: false,
+  jumpBackwardsTime: PV.Player.jumpBackSeconds.toString(),
+  jumpForwardsTime: PV.Player.jumpSeconds.toString(),
+  addCurrentItemNextInQueue: true,
   overlayAlert: {
     shouldShowAlert: false
   },
-  parsedTranscript: [],
+  parsedTranscript: null,
+  currentChapter: null,
+  currentChapters: [],
+  currentChaptersStartTimePositions: [],
   player: {
-    currentChapter: null,
-    currentChapters: [],
     hasErrored: false,
     isPlaying: false,
     nowPlayingItem: null,
@@ -74,15 +78,18 @@ const initialTheme: InitialState = {
     isLoading: false,
     isLoadingMore: false,
     isQuerying: false,
+    mediaRefIdToDelete: '',
     queryFrom: PV.Filters._fromThisEpisodeKey,
     queryPage: 1,
     querySort: PV.Filters._topPastWeek,
     selectedFromLabel: '',
+    showDeleteConfirmDialog: false,
     showFullClipInfo: false,
     showHeaderActionSheet: false,
     showMoreActionSheet: false,
     showNoInternetConnectionMessage: false,
-    showShareActionSheet: false
+    showShareActionSheet: false,
+    viewType: null
   },
   screenPlaylist: {
     flatListData: [],
@@ -131,7 +138,8 @@ const initialTheme: InitialState = {
     startTime: undefined,
     endTime: null,
     clipTitle: undefined
-  }
+  },
+  screenReaderEnabled: false
 }
 
 export default initialTheme

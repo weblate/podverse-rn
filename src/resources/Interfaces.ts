@@ -51,8 +51,9 @@ export interface GlobalTheme {
   textInput?: any
   textInputIcon?: any
   textInputEyeBrow?: any
-  textInputPreLabel?: any
   textInputWrapper?: any
+  textSecondary?: boolean
+  textNowPlaying?: boolean
   view?: any
 }
 
@@ -96,14 +97,18 @@ export interface InitialState {
   urlsAPI?: any
   urlsWeb?: any
   offlineModeEnabled?: any
+  jumpBackwardsTime: string
+  jumpForwardsTime: string
+  addCurrentItemNextInQueue: boolean
   overlayAlert: {
     shouldShowAlert: boolean
   }
-  parsedTranscript: TranscriptRow[]
+  parsedTranscript: TranscriptRow[] | null
+  currentChapter: any
+  currentChapters: any
+  currentChaptersStartTimePositions: any
   player: {
     backupDuration?: number
-    currentChapter: any
-    currentChapters: any
     hasErrored: boolean
     isPlaying: boolean
     nowPlayingItem: any
@@ -145,12 +150,14 @@ export interface InitialState {
     isLoading: boolean
     isLoadingMore: boolean
     isQuerying: boolean
+    mediaRefIdToDelete?: string
     queryFrom: string | null
     queryPage: number
     querySort: string | null
     selectedFromLabel?: string | null
     selectedItem?: any
     selectedSortLabel?: string | null
+    showDeleteConfirmDialog: boolean
     showFullClipInfo: boolean
     showHeaderActionSheet: boolean
     showMoreActionSheet: boolean

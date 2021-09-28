@@ -11,7 +11,7 @@ import {
   View
 } from '../components'
 import { translate } from '../lib/i18n'
-import { overrideImageUrlWithChapterImageUrl, safeKeyExtractor, testProps } from '../lib/utility'
+import { overrideImageUrlWithChapterImageUrl, safeKeyExtractor } from '../lib/utility'
 import { PV } from '../resources'
 import { trackPageView } from '../services/tracking'
 import { loadItemAndPlayTrack } from '../state/actions/player'
@@ -74,16 +74,20 @@ export class HistoryScreen extends React.Component<Props, State> {
             {!navigation.getParam('isEditing') ? (
               <RNView style={styles.headerButtonWrapper}>
                 <NavHeaderButtonText
+                  accessibilityHint={translate('ARIA HINT - tap to start removing items from your history')}
+                  accessibilityLabel={translate('Remove')}
                   color={textColor}
                   handlePress={navigation.getParam('_startEditing')}
                   style={styles.navHeaderTextButton}
                   testID={`${testIDPrefix}_header_edit`}
-                  text={translate('Edit')}
+                  text={translate('Remove')}
                 />
               </RNView>
             ) : (
               <RNView style={styles.headerButtonWrapper}>
                 <NavHeaderButtonText
+                  accessibilityHint={translate('ARIA HINT - tap to stop removing items from your history')}
+                  accessibilityLabel={translate('Done')}
                   color={textColor}
                   handlePress={navigation.getParam('_stopEditing')}
                   style={styles.navHeaderTextButton}
@@ -130,7 +134,9 @@ export class HistoryScreen extends React.Component<Props, State> {
   _handlePlayItem = async (item: NowPlayingItem) => {
     try {
       const shouldPlay = true
-      await loadItemAndPlayTrack(item, shouldPlay)
+      const forceUpdateOrderDate = false
+      const setCurrentItemNextInQueue = true
+      await loadItemAndPlayTrack(item, shouldPlay, forceUpdateOrderDate, setCurrentItemNextInQueue)
     } catch (error) {
       // Error Loading and playing item
     }
@@ -140,26 +146,24 @@ export class HistoryScreen extends React.Component<Props, State> {
     const { isEditing, isTransparent } = this.state
 
     return (
-      <View transparent={isTransparent}>
-        <QueueTableCell
-          clipEndTime={item?.clipEndTime}
-          clipStartTime={item?.clipStartTime}
-          {...(item?.clipTitle ? { clipTitle: item.clipTitle } : {})}
-          {...(item?.episodePubDate ? { episodePubDate: item.episodePubDate } : {})}
-          {...(item?.episodeTitle ? { episodeTitle: item.episodeTitle } : {})}
-          handleRemovePress={() => this._handleRemoveHistoryItemPress(item)}
-          onPress={() => {
-            if (!isEditing) {
-              this._handlePlayItem(item)
-            }
-          }}
-          podcastImageUrl={item?.podcastImageUrl}
-          {...(item?.podcastTitle ? { podcastTitle: item.podcastTitle } : {})}
-          showRemoveButton={isEditing}
-          testID={`${testIDPrefix}_history_item_${index}`}
-          transparent={isTransparent}
-        />
-      </View>
+      <QueueTableCell
+        clipEndTime={item?.clipEndTime}
+        clipStartTime={item?.clipStartTime}
+        {...(item?.clipTitle ? { clipTitle: item.clipTitle } : {})}
+        {...(item?.episodePubDate ? { episodePubDate: item.episodePubDate } : {})}
+        {...(item?.episodeTitle ? { episodeTitle: item.episodeTitle } : {})}
+        handleRemovePress={() => this._handleRemoveHistoryItemPress(item)}
+        onPress={() => {
+          if (!isEditing) {
+            this._handlePlayItem(item)
+          }
+        }}
+        podcastImageUrl={item?.podcastImageUrl}
+        {...(item?.podcastTitle ? { podcastTitle: item.podcastTitle } : {})}
+        showRemoveButton={isEditing}
+        testID={`${testIDPrefix}_history_item_${index}`}
+        transparent={isTransparent}
+      />
     )
   }
 
@@ -200,11 +204,15 @@ export class HistoryScreen extends React.Component<Props, State> {
 
   render() {
     const { historyItems = [] } = this.global.session.userInfo
-    const { currentChapter, nowPlayingItem } = this.global.player
+    const { currentChapter, player } = this.global
+    const { nowPlayingItem } = player
     const { isLoading, isLoadingMore, isRemoving, isTransparent } = this.state
 
     const view = (
-      <View style={styles.view} transparent={isTransparent} {...testProps(`${testIDPrefix}_view`)}>
+      <View
+        style={styles.view}
+        transparent={isTransparent}
+        testID={`${testIDPrefix}_view`}>
         {!isLoading && (
           <FlatList
             data={historyItems}

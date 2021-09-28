@@ -2,6 +2,9 @@ import Bottleneck from 'bottleneck'
 import { clone } from 'lodash'
 import RNBackgroundDownloader from 'react-native-background-downloader'
 import RNFS from 'react-native-fs'
+import { getSecureUrl } from '../services/tools'
+import { getPodcastCredentialsHeader } from '../services/parser'
+import { getPodcastFeedUrlAuthority } from '../services/podcast'
 import * as DownloadState from '../state/actions/downloads'
 import { addDownloadedPodcastEpisode, getDownloadedPodcasts } from './downloadedPodcast'
 import { addDownloadingEpisode, getDownloadingEpisodes, removeDownloadingEpisode } from './downloadingEpisode'
@@ -56,18 +59,30 @@ export const deleteDownloadedEpisode = async (episode: any) => {
 const addDLTask = (episode: any, podcast: any) =>
   DownloadState.addDownloadTask({
     addByRSSPodcastFeedUrl: podcast.addByRSSPodcastFeedUrl,
+    episodeChaptersUrl: episode.chaptersUrl,
+    episodeCredentialsRequired: episode.credentialsRequired,
     episodeDescription: episode.description,
     episodeDuration: episode.duration,
+    episodeFunding: episode.funding,
     episodeId: episode.id,
     episodeImageUrl: episode.imageUrl,
+    episodeLinkUrl: episode.linkUrl,
     episodeMediaUrl: episode.mediaUrl,
     episodePubDate: episode.pubDate,
     episodeTitle: episode.title,
+    episodeTranscript: episode.transcript,
+    episodeValue: episode.value,
+    podcastCredentialsRequired: podcast.credentialsRequired,
+    podcastFunding: podcast.funding,
+    podcastHideDynamicAdsWarning: podcast.hideDynamicAdsWarning,
     podcastId: podcast.id,
     podcastImageUrl: podcast.shrunkImageUrl || podcast.imageUrl,
     podcastIsExplicit: podcast.isExplicit,
+    podcastLinkUrl: podcast.linkUrl,
+    podcastShrunkImageUrl: podcast.shrunkImageUrl,
     podcastSortableTitle: podcast.sortableTitle,
-    podcastTitle: podcast.title
+    podcastTitle: podcast.title,
+    podcastValue: podcast.value
   })
 
 // NOTE: I was unable to get BackgroundDownloader to successfully resume tasks that were
@@ -126,17 +141,38 @@ export const downloadEpisode = async (
     minTime: 2000
   })
 
+  let finalFeedUrl = podcast.addByRSSPodcastFeedUrl
+  if (podcast.credentialsRequired && !podcast.addByRSSPodcastFeedUrl && podcast.id) {
+    finalFeedUrl = await getPodcastFeedUrlAuthority(podcast.id)
+  }
+
   const downloader = await BackgroundDownloader()
   const destination = `${downloader.directories.documents}/${episode.id}${ext}`
-  const secureEpisodeMediaUrl = episode.mediaUrl
+  const Authorization = await getPodcastCredentialsHeader(finalFeedUrl)
+
+  
+  let downloadUrl = episode.mediaUrl
+  if(downloadUrl.startsWith("http://")) {
+    try {
+      const secureUrlInfo = await getSecureUrl(episode.mediaUrl)
+      if(secureUrlInfo?.secureUrl) {
+        downloadUrl = secureUrlInfo.secureUrl
+      }
+    } catch (err) {
+      console.log("Secure url not found for http mediaUrl. Info: ", err)
+    }
+  }
 
   // Wait for t.stop() to complete
   setTimeout(() => {
     const task = downloader
       .download({
         id: episode.id,
-        url: secureEpisodeMediaUrl,
-        destination
+        url: downloadUrl,
+        destination,
+        headers: {
+          ...(Authorization ? { Authorization } : {})
+        }
       })
       .begin(() => {
         if (!restart) {

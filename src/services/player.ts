@@ -7,19 +7,21 @@ import {
 import { Platform } from 'react-native'
 import RNFS from 'react-native-fs'
 import TrackPlayer, { Capability, PitchAlgorithm, State, Track } from 'react-native-track-player'
+import { getGlobal } from 'reactn'
 import { getDownloadedEpisode } from '../lib/downloadedPodcast'
 import { BackgroundDownloader } from '../lib/downloader'
 import { checkIfIdMatchesClipIdOrEpisodeIdOrAddByUrl,
   getAppUserAgent, getExtensionFromUrl } from '../lib/utility'
 import { PV } from '../resources'
 import PVEventEmitter from './eventEmitter'
+import { getPodcastCredentialsHeader } from './parser'
+import { getPodcastFeedUrlAuthority } from './podcast'
 import {
   addQueueItemLast,
   addQueueItemNext,
   filterItemFromQueueItems,
   getQueueItems,
-  getQueueItemsLocally,
-  removeQueueItem
+  getQueueItemsLocally
 } from './queue'
 import { addOrUpdateHistoryItem, getHistoryItemsIndexLocally, getHistoryItemsLocally } from './userHistoryItem'
 import { getNowPlayingItem, getNowPlayingItemLocally } from './userNowPlayingItem'
@@ -83,13 +85,17 @@ TrackPlayer.setupPlayer({
 })
 
 export const updateTrackPlayerCapabilities = () => {
+  const { jumpBackwardsTime, jumpForwardsTime } = getGlobal()
+
   TrackPlayer.updateOptions({
     capabilities: [
       Capability.JumpBackward,
       Capability.JumpForward,
       Capability.Pause,
       Capability.Play,
-      Capability.SeekTo
+      Capability.SeekTo,
+      Capability.SkipToNext,
+      Capability.SkipToPrevious
     ],
     compactCapabilities: [
       Capability.JumpBackward,
@@ -109,8 +115,8 @@ export const updateTrackPlayerCapabilities = () => {
     // every time the user receives a notification.
     alwaysPauseOnInterruption: Platform.OS === 'ios',
     stopWithApp: true,
-    // Better to skip 10 both ways than to skip 30 both ways. No current way to set them separately
-    jumpInterval: PV.Player.jumpBackSeconds
+    backwardJumpInterval: parseInt(jumpBackwardsTime, 10),
+    forwardJumpInterval: parseInt(jumpForwardsTime, 10)
   })
 }
 
@@ -147,16 +153,16 @@ export const handleResumeAfterClipHasEnded = async () => {
   PVEventEmitter.emit(PV.Events.PLAYER_RESUME_AFTER_CLIP_HAS_ENDED)
 }
 
-export const playerJumpBackward = async (seconds: number) => {
+export const playerJumpBackward = async (seconds: string) => {
   const position = await PVTrackPlayer.getTrackPosition()
-  const newPosition = position - seconds
+  const newPosition = position - parseInt(seconds, 10)
   await TrackPlayer.seekTo(newPosition)
   return newPosition
 }
 
-export const playerJumpForward = async (seconds: number) => {
+export const playerJumpForward = async (seconds: string) => {
   const position = await PVTrackPlayer.getTrackPosition()
-  const newPosition = position + seconds
+  const newPosition = position + parseInt(seconds, 10)
   await TrackPlayer.seekTo(newPosition)
   return newPosition
 }
@@ -229,7 +235,6 @@ const getDownloadedFilePath = async (id: string, episodeMediaUrl: string) => {
   const ext = getExtensionFromUrl(episodeMediaUrl)
   const downloader = await BackgroundDownloader()
 
-  
   /* If downloaded episode is for an addByRSSPodcast, then the episodeMediaUrl
      will be the id, so remove the URL params from the URL, and don't append
      an extension to the file path.
@@ -256,7 +261,11 @@ const checkIfFileIsDownloaded = async (id: string, episodeMediaUrl: string) => {
 
 export const getCurrentLoadedTrackId = async () => {
   const trackIndex = await PVTrackPlayer.getCurrentTrack()
+  const trackId = await getLoadedTrackIdByIndex(trackIndex)
+  return trackId
+}
 
+export const getLoadedTrackIdByIndex = async (trackIndex: number) => {
   let trackId = ''
   if (trackIndex > 0 || trackIndex === 0) {
     const track = await PVTrackPlayer.getTrack(trackIndex)
@@ -268,6 +277,11 @@ export const getCurrentLoadedTrackId = async () => {
   return trackId
 }
 
+/*
+  Always use await with updateUserPlaybackPosition to make sure that
+  getTrackPosition and getTrackDuration are accurate for the currently playing item.
+  addOrUpdateHistoryItem can be called without await.
+*/
 export const updateUserPlaybackPosition = async (skipSetNowPlaying?: boolean) => {
   try {
     const currentTrackId = await getCurrentLoadedTrackId()
@@ -284,9 +298,9 @@ export const updateUserPlaybackPosition = async (skipSetNowPlaying?: boolean) =>
       const forceUpdateOrderDate = false
 
       if (duration > 0 && lastPosition >= duration - 10) {
-        await addOrUpdateHistoryItem(currentNowPlayingItem, 0, duration, forceUpdateOrderDate, skipSetNowPlaying)
+        addOrUpdateHistoryItem(currentNowPlayingItem, 0, duration, forceUpdateOrderDate, skipSetNowPlaying)
       } else if (lastPosition > 0) {
-        await addOrUpdateHistoryItem(
+        addOrUpdateHistoryItem(
           currentNowPlayingItem,
           lastPosition,
           duration,
@@ -325,14 +339,24 @@ export const initializePlayerQueue = async () => {
 export const loadItemAndPlayTrack = async (
   item: NowPlayingItem,
   shouldPlay: boolean,
-  forceUpdateOrderDate?: boolean
+  forceUpdateOrderDate: boolean,
+  itemToSetNextInQueue: NowPlayingItem | null
 ) => {
   if (!item) return
+  const { addCurrentItemNextInQueue } = getGlobal()
+
+  if (
+    addCurrentItemNextInQueue
+    && itemToSetNextInQueue
+    && item.episodeId !== itemToSetNextInQueue.episodeId
+  ) {  
+    addQueueItemNext(itemToSetNextInQueue)
+  }
 
   const newItem = item
 
   const skipSetNowPlaying = true
-  updateUserPlaybackPosition(skipSetNowPlaying)
+  await updateUserPlaybackPosition(skipSetNowPlaying)
 
   // check if loading a chapter, and if the now playing item is the same episode.
   // if it is, then call setPlaybackposition, and play if shouldPlay, then return.
@@ -351,14 +375,16 @@ export const loadItemAndPlayTrack = async (
   addOrUpdateHistoryItem(item, item.userPlaybackPosition || 0, item.episodeDuration || 0, forceUpdateOrderDate)
 
   if (Platform.OS === 'ios') {
+    await AsyncStorage.setItem(PV.Keys.PLAYER_PREVENT_HANDLE_QUEUE_ENDED, 'true')
     TrackPlayer.reset()
     const track = (await createTrack(item)) as Track
     await TrackPlayer.add(track)
+    await AsyncStorage.removeItem(PV.Keys.PLAYER_PREVENT_HANDLE_QUEUE_ENDED)
     await syncPlayerWithQueue()
   } else {
     const currentId = await getCurrentLoadedTrackId()
     if (currentId) {
-      await TrackPlayer.removeUpcomingTracks()
+      TrackPlayer.removeUpcomingTracks()
       const track = (await createTrack(item)) as Track
       await TrackPlayer.add(track)
       await TrackPlayer.skipToNext()
@@ -397,7 +423,6 @@ export const playNextFromQueue = async () => {
       currentId, setPlayerClipIsLoadedIfClip)
     if (item) {
       await addOrUpdateHistoryItem(item, item.userPlaybackPosition || 0, item.episodeDuration || 0)
-      await removeQueueItem(item)
       return item
     }
   }
@@ -416,7 +441,7 @@ export const addItemToPlayerQueueLast = async (item: NowPlayingItem) => {
 export const syncPlayerWithQueue = async () => {
   try {
     const pvQueueItems = await getQueueItemsLocally()
-    await TrackPlayer.removeUpcomingTracks()
+    TrackPlayer.removeUpcomingTracks()
     const tracks = await createTracks(pvQueueItems)
     await TrackPlayer.add(tracks)
   } catch (error) {
@@ -449,10 +474,13 @@ export const createTrack = async (item: NowPlayingItem) => {
   if (!item) return
 
   const {
+    addByRSSPodcastFeedUrl,
     clipId,
     episodeId,
     episodeMediaUrl = '',
     episodeTitle = 'Untitled Episode',
+    podcastCredentialsRequired,
+    podcastId,
     podcastImageUrl,
     podcastShrunkImageUrl,
     podcastTitle = 'Untitled Podcast'
@@ -461,6 +489,15 @@ export const createTrack = async (item: NowPlayingItem) => {
   const imageUrl = podcastShrunkImageUrl ? podcastShrunkImageUrl : podcastImageUrl
 
   const id = clipId || episodeId
+  let finalFeedUrl = addByRSSPodcastFeedUrl
+
+  /*
+    If credentials are required but it is a podcast stored in our database,
+    then get the authority feedUrl for the podcast before proceeding.
+  */
+  if (podcastCredentialsRequired && !addByRSSPodcastFeedUrl && podcastId) {
+    finalFeedUrl = await getPodcastFeedUrlAuthority(podcastId)
+  }
 
   if (episodeId) {
     const isDownloadedFile = await checkIfFileIsDownloaded(episodeId, episodeMediaUrl)
@@ -473,22 +510,23 @@ export const createTrack = async (item: NowPlayingItem) => {
         title: episodeTitle,
         artist: podcastTitle,
         ...(imageUrl ? { artwork: imageUrl } : {}),
-        headers: {
-          'User-Agent': getAppUserAgent()
-        },
+        userAgent: getAppUserAgent(),
         pitchAlgorithm: PitchAlgorithm.Voice
       }
     } else {
+      const Authorization = await getPodcastCredentialsHeader(finalFeedUrl)
+
       track = {
         id,
         url: episodeMediaUrl,
         title: episodeTitle,
         artist: podcastTitle,
         ...(imageUrl ? { artwork: imageUrl } : {}),
+        userAgent: getAppUserAgent(),
+        pitchAlgorithm: PitchAlgorithm.Voice,
         headers: {
-          'User-Agent': getAppUserAgent()
-        },
-        pitchAlgorithm: PitchAlgorithm.Voice
+          ...(Authorization ? { Authorization } : {})
+        }
       }
     }
   }
@@ -632,15 +670,15 @@ export const getNowPlayingItemFromQueueOrHistoryOrDownloadedByTrackId = async (
 
   const queueItems = await getQueueItemsLocally()
 
+
   const queueItemIndex = queueItems.findIndex((x: any) =>
     checkIfIdMatchesClipIdOrEpisodeIdOrAddByUrl(trackId, x.clipId, x.episodeId)
   )
-  let currentNowPlayingItem = queueItemIndex > -1 && queueItems[queueItemIndex]
 
+  let currentNowPlayingItem = queueItemIndex > -1 && queueItems[queueItemIndex]
   if (!currentNowPlayingItem) {
     const results = await getHistoryItemsLocally()
     const { userHistoryItems } = results
-
     currentNowPlayingItem = userHistoryItems.find((x: any) =>
       checkIfIdMatchesClipIdOrEpisodeIdOrAddByUrl(trackId, x.clipId, x.episodeId)
     )
@@ -690,4 +728,20 @@ export const handlePlay = () => {
 export const checkIdlePlayerState = async () => {
   const state = await TrackPlayer.getState()
   return state === 0 || state === State.None
+}
+
+export const setPlayerJumpBackwards = (val?: string) => {
+  const newValue = val && parseInt(val, 10) > 0 || val === '' ? val : PV.Player.jumpBackSeconds.toString()
+  if (newValue !== '') {
+    AsyncStorage.setItem(PV.Keys.PLAYER_JUMP_BACKWARDS, newValue.toString())
+  }
+  return newValue
+}
+
+export const setPlayerJumpForwards = (val?: string) => {
+  const newValue = val && parseInt(val, 10) > 0 || val === '' ? val : PV.Player.jumpSeconds.toString()
+  if (newValue !== '') {
+    AsyncStorage.setItem(PV.Keys.PLAYER_JUMP_FORWARDS, newValue.toString())
+  }
+  return newValue
 }

@@ -1,16 +1,18 @@
-import { StyleSheet, TouchableWithoutFeedback, View as RNView } from 'react-native'
+import { Pressable, StyleSheet, TouchableWithoutFeedback, View as RNView } from 'react-native'
 import React from 'reactn'
 import { translate } from '../lib/i18n'
-import { decodeHTMLString, readableDate, removeHTMLFromString, testProps } from '../lib/utility'
+import { decodeHTMLString, getTimeLabelText, readableDate, removeHTMLFromString } from '../lib/utility'
 import { PV } from '../resources'
-import { DownloadButton } from './DownloadButton'
+import { images } from '../styles'
+import { DownloadOrDeleteButton } from './DownloadOrDeleteButton'
 import { TimeRemainingWidget } from './TimeRemainingWidget'
-import { FastImage, IndicatorDownload, Text, View } from './'
+import { FastImage, Text, View } from './'
 
 type Props = {
+  handleDeletePress?: any
+  handleDownloadPress?: any
   handleMorePress?: any
   handleNavigationPress?: any
-  handleDownloadPress?: any
   hideImage?: boolean
   item?: any
   mediaFileDuration?: number
@@ -24,29 +26,37 @@ type Props = {
 export class EpisodeTableCell extends React.PureComponent<Props> {
   render() {
     const {
+      handleDeletePress,
+      handleDownloadPress,
       handleMorePress,
       handleNavigationPress,
-      handleDownloadPress,
       hideImage,
       item,
       mediaFileDuration,
       showPodcastInfo,
       testID,
-      transparent,
       userPlaybackPosition
     } = this.props
 
-    const { id, mediaUrl, pubDate = '', podcast = {} } = item
+    const { episodeDuration, id, mediaUrl, pubDate = '', podcast = {} } = item
     let { description = '', title = '' } = item
 
     const podcastTitle = podcast.title || translate('Untitled Podcast')
     description = removeHTMLFromString(description)
     description = decodeHTMLString(description)
+    description = description?.trim() || ''
 
-    const { downloadedEpisodeIds, downloadsActive, fontScaleMode } = this.global
+    const { downloadedEpisodeIds, downloadsActive, fontScaleMode, screenReaderEnabled, session } = this.global
+    const { userInfo } = session
+    const { historyItemsIndex } = userInfo
 
     const isDownloading = downloadsActive[id]
     const isDownloaded = item.addByRSSPodcastFeedUrl ? downloadedEpisodeIds[mediaUrl] : downloadedEpisodeIds[id]
+
+    const episodeCompleted = historyItemsIndex && historyItemsIndex.episodes && id
+      && historyItemsIndex.episodes[id] && historyItemsIndex.episodes[id].completed
+
+    const episodeDownloading = !!downloadsActive[id]
 
     if (!title) title = translate('Untitled Episode')
 
@@ -54,10 +64,23 @@ export class EpisodeTableCell extends React.PureComponent<Props> {
 
     const imageUrl = podcast.shrunkImageUrl || podcast.imageUrl
 
+    const podcastTitleText = podcastTitle.trim()
+    const episodeTitleText = title.trim()
+    const pubDateText = readableDate(pubDate)
+    const timeLabel = getTimeLabelText(mediaFileDuration, episodeDuration, userPlaybackPosition)
+    const timeLabelText = timeLabel ? timeLabel : translate('Unplayed episode')
+
+    const accessibilityLabel =
+      `${showPodcastInfo ? `${podcastTitleText}, ` : ''} ${episodeTitleText}, ${pubDateText}, ${timeLabelText}`
+
     const innerTopView = (
-      <RNView style={styles.innerTopView}>
+      <RNView
+        accessible={false}
+        importantForAccessibility='no-hide-descendants'
+        style={styles.innerTopView}>
         {!!imageUrl && !hideImage && <FastImage isSmall source={imageUrl} styles={styles.image} />}
-        <RNView style={styles.textWrapper}>
+        <RNView
+          style={styles.textWrapper}>
           {showPodcastInfo && podcastTitle && (
             <Text
               fontSizeLargestScale={PV.Fonts.largeSizes.sm}
@@ -65,7 +88,7 @@ export class EpisodeTableCell extends React.PureComponent<Props> {
               numberOfLines={1}
               style={styles.podcastTitle}
               testID={`${testID}_podcast_title`}>
-              {podcastTitle.trim()}
+              {podcastTitleText}
             </Text>
           )}
           {title && (
@@ -74,7 +97,7 @@ export class EpisodeTableCell extends React.PureComponent<Props> {
               numberOfLines={2}
               style={titleStyle}
               testID={`${testID}_title`}>
-              {title.trim()}
+              {episodeTitleText}
             </Text>
           )}
           <RNView style={styles.textWrapperBottomRow}>
@@ -83,9 +106,8 @@ export class EpisodeTableCell extends React.PureComponent<Props> {
               isSecondary
               style={styles.pubDate}
               testID={`${testID}_pub_date`}>
-              {readableDate(pubDate)}
+              {pubDateText}
             </Text>
-            {isDownloaded && <IndicatorDownload />}
           </RNView>
         </RNView>
       </RNView>
@@ -95,35 +117,53 @@ export class EpisodeTableCell extends React.PureComponent<Props> {
 
     const bottomText = (
       <Text
+        accessible={false}
         fontSizeLargestScale={PV.Fonts.largeSizes.md}
+        importantForAccessibility='no-hide-descendants'
         isSecondary
         numberOfLines={2}
         style={descriptionStyle}
         testID={`${testID}_description`}>
-        {description.trim()}
+        {description}
       </Text>
     )
 
     return (
-      <View style={styles.wrapper} transparent={transparent}>
-        <RNView style={styles.wrapperTop}>
-          {handleNavigationPress ? (
+      <Pressable
+        accessible={screenReaderEnabled}
+        accessibilityHint={translate('ARIA HINT - tap to show options for this episode')}
+        accessibilityLabel={accessibilityLabel}
+        importantForAccessibility={screenReaderEnabled ? 'yes' : 'no-hide-descendants'}
+        onPress={handleMorePress}
+        style={styles.wrapper}>
+        <RNView
+          accessible={false}
+          importantForAccessibility='no-hide-descendants'
+          style={styles.wrapperTop}>
+          {(handleNavigationPress && !screenReaderEnabled) ? (
             <TouchableWithoutFeedback
-              onPress={handleNavigationPress}
-              {...(testID ? testProps(`${testID}_top_view_nav`) : {})}>
+              accessible={false}
+              importantForAccessibility='no-hide-descendants'
+              {...(!screenReaderEnabled ? { onPress: handleNavigationPress } : {})}
+              {...(testID ? { testID: `${testID}_top_view_nav`.prependTestId() } : {})}>
               {innerTopView}
             </TouchableWithoutFeedback>
           ) : (
             innerTopView
           )}
-          {!isDownloaded && (
-            <DownloadButton testID={testID} isDownloading={isDownloading} onPress={() => handleDownloadPress(item)} />
-          )}
+          <DownloadOrDeleteButton
+            isDownloaded={isDownloaded}
+            isDownloading={isDownloading}
+            onPressDelete={() => handleDeletePress(item)}
+            onPressDownload={() => handleDownloadPress(item)}
+            testID={testID} />
         </RNView>
-        {handleNavigationPress ? (
+        {(handleNavigationPress && !screenReaderEnabled) ? (
           <TouchableWithoutFeedback
-            onPress={handleNavigationPress}
-            {...(testID ? testProps(`${testID}_bottom_view_nav`) : {})}>
+            accessible={false}
+            importantForAccessibility='no-hide-descendants'
+            {...(!screenReaderEnabled ? { onPress: handleNavigationPress } : {})}
+            {...(testID ? { testID: `${testID}_bottom_view_nav`.prependTestId() } : {})}>
             <RNView>{PV.Fonts.fontScale.largest !== fontScaleMode && bottomText}</RNView>
           </TouchableWithoutFeedback>
         ) : (
@@ -131,14 +171,17 @@ export class EpisodeTableCell extends React.PureComponent<Props> {
         )}
         <View style={styles.timeRemainingWrapper}>
           <TimeRemainingWidget
+            episodeCompleted={episodeCompleted}
             handleMorePress={handleMorePress}
             item={item}
+            itemType='episode'
             mediaFileDuration={mediaFileDuration}
             testID={testID}
+            timeLabel={timeLabel}
             userPlaybackPosition={userPlaybackPosition}
           />
         </View>
-      </View>
+      </Pressable>
     )
   }
 }
@@ -147,13 +190,13 @@ const styles = StyleSheet.create({
   description: {
     fontSize: PV.Fonts.sizes.sm,
     color: PV.Colors.grayLighter,
-    marginTop: 15
+    marginTop: 12
   },
   image: {
     flex: 0,
-    height: 64,
+    height: images.medium.height,
     marginRight: 12,
-    width: 64
+    width: images.medium.width
   },
   innerTopView: {
     flex: 1,

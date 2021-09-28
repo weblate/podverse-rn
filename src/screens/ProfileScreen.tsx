@@ -23,7 +23,7 @@ import { getDefaultSortForFilter, getSelectedFilterLabel, getSelectedSortLabel }
 import { translate } from '../lib/i18n'
 import { navigateToPodcastScreenWithPodcast } from '../lib/navigate'
 import { alertIfNoNetworkConnection, hasValidNetworkConnection } from '../lib/network'
-import { isOdd, safelyUnwrapNestedVariable, testProps } from '../lib/utility'
+import { isOdd, safelyUnwrapNestedVariable } from '../lib/utility'
 import { PV } from '../resources'
 import { deleteMediaRef } from '../services/mediaRef'
 import { getPodcasts } from '../services/podcast'
@@ -408,9 +408,11 @@ export class ProfileScreen extends React.Component<Props, State> {
     })
   }
 
-  _handleNavigationPress = (selectedItem: any) => {
+  _handleNavigationPress = async (selectedItem: any) => {
     const shouldPlay = true
-    loadItemAndPlayTrack(selectedItem, shouldPlay)
+    const forceUpdateOrderDate = false
+    const setCurrentItemNextInQueue = true
+    await loadItemAndPlayTrack(selectedItem, shouldPlay, forceUpdateOrderDate, setCurrentItemNextInQueue)
   }
 
   _renderItem = ({ item, index }) => {
@@ -498,7 +500,9 @@ export class ProfileScreen extends React.Component<Props, State> {
     const showOfflineMessage = offlineModeEnabled
 
     return (
-      <View style={styles.view} {...testProps(`${testIDPrefix}_view`)}>
+      <View
+        style={styles.view}
+        testID={`${testIDPrefix}_view`}>
         {isMyProfile && !isLoggedIn && (
           <MessageWithAction
             topActionHandler={this._onPressLogin}
@@ -513,6 +517,7 @@ export class ProfileScreen extends React.Component<Props, State> {
               handleToggleSubscribe={isLoggedInUserProfile ? null : () => this._handleToggleSubscribe(userId)}
               id={userId}
               isLoading={isLoading && !user}
+              isLoggedInUserProfile={isLoggedInUserProfile}
               isNotFound={!isLoading && !user}
               isSubscribed={isSubscribed}
               isSubscribing={isSubscribing}
@@ -532,7 +537,7 @@ export class ProfileScreen extends React.Component<Props, State> {
               selectedSortLabel={selectedSortLabel}
               testID={testIDPrefix}
             />
-            {isLoading && <ActivityIndicator fillSpace testID={testIDPrefix} />}
+            {isLoading && <ActivityIndicator accessible={false} fillSpace testID={testIDPrefix} />}
             {!isLoading && viewType && flatListData && (
               <FlatList
                 data={flatListData}
@@ -554,13 +559,25 @@ export class ProfileScreen extends React.Component<Props, State> {
                 if (selectedItem) {
                   const loggedInUserId = safelyUnwrapNestedVariable(() => session.userInfo.id, '')
                   selectedItem.ownerId = loggedInUserId
-                  return PV.ActionSheet.media.moreButtons(selectedItem, navigation, {
-                    handleDismiss: this._handleCancelPress,
-                    handleDownload: this._handleDownloadPressed,
-                    handleDeleteClip: this._showDeleteConfirmDialog,
-                    includeGoToPodcast: true,
-                    includeGoToEpisode: true
-                  })
+
+                  const itemType = selectedItem.clipIsOfficialChapter
+                    ? 'chapter'
+                    : !!selectedItem.clipId
+                      ? 'clip'
+                      : 'episode'
+
+                  return PV.ActionSheet.media.moreButtons(
+                    selectedItem,
+                    navigation,
+                    {
+                      handleDismiss: this._handleCancelPress,
+                      handleDownload: this._handleDownloadPressed,
+                      handleDeleteClip: this._showDeleteConfirmDialog,
+                      includeGoToPodcast: true,
+                      includeGoToEpisodeInEpisodesStack: true
+                    },
+                    itemType
+                  )
                 }
               }}
               showModal={showActionSheet}
@@ -572,12 +589,12 @@ export class ProfileScreen extends React.Component<Props, State> {
               <Dialog.Button
                 label={translate('Cancel')}
                 onPress={this._cancelDeleteMediaRef}
-                {...testProps('dialog_delete_clip_cancel')}
+                testID={'dialog_delete_clip_cancel'.prependTestId()}
               />
               <Dialog.Button
                 label={translate('Delete')}
                 onPress={this._deleteMediaRef}
-                {...testProps('dialog_delete_clip_delete')}
+                testID={'dialog_delete_clip_delete'.prependTestId()}
               />
             </Dialog.Container>
           </View>

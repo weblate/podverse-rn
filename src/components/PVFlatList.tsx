@@ -25,13 +25,17 @@ type Props = {
   keyExtractor: any
   ListHeaderComponent?: any
   noResultsBottomActionText?: string
+  noResultsBottomActionTextAccessibilityHint?: string
   noResultsMessage?: string
+  noResultsMiddleActionTextAccessibilityHint?: string
   noResultsMiddleActionText?: string
   noResultsSubMessage?: string
+  noResultsTopActionTextAccessibilityHint?: string
   noResultsTopActionText?: string
   onEndReached?: any
   onEndReachedThreshold?: number
   onRefresh?: any
+  onScrollBeginDrag?: any
   renderHiddenItem?: any
   renderSectionHeader?: any
   renderItem: any
@@ -64,14 +68,18 @@ export const PVFlatList = (props: Props) => {
     keyExtractor,
     ListHeaderComponent,
     listRef,
+    noResultsBottomActionTextAccessibilityHint,
     noResultsBottomActionText,
     noResultsMessage,
     noResultsMiddleActionText,
+    noResultsMiddleActionTextAccessibilityHint,
     noResultsSubMessage,
     noResultsTopActionText,
+    noResultsTopActionTextAccessibilityHint,
     onEndReached,
     onEndReachedThreshold = 0.9,
     onRefresh,
+    onScrollBeginDrag,
     renderHiddenItem,
     renderItem,
     renderSectionHeader,
@@ -107,8 +115,11 @@ export const PVFlatList = (props: Props) => {
           message={noResultsMessage}
           middleActionHandler={handleNoResultsMiddleAction}
           middleActionText={noResultsMiddleActionText}
+          bottomActionAccessibilityHint={noResultsBottomActionTextAccessibilityHint}
+          middleActionAccessibilityHint={noResultsMiddleActionTextAccessibilityHint}
           subMessage={noResultsSubMessage}
           testID={testID}
+          topActionAccessibilityHint={noResultsTopActionTextAccessibilityHint}
           topActionHandler={handleNoResultsTopAction}
           topActionText={noResultsTopActionText}
           transparent={transparent}
@@ -125,11 +136,15 @@ export const PVFlatList = (props: Props) => {
           extraData={extraData}
           ItemSeparatorComponent={ItemSeparatorComponent}
           keyExtractor={keyExtractor}
+          onScrollBeginDrag={onScrollBeginDrag}
           ListFooterComponent={() => {
             if (isLoadingMore && !isEndOfResults) {
               return (
-                <View style={[styles.isLoadingMoreCell, globalTheme.tableCellBorder]} transparent={transparent}>
-                  <ActivityIndicator testID={testID} />
+                <View
+                  accessible={false}
+                  style={[styles.isLoadingMoreCell, globalTheme.tableCellBorder]}
+                  transparent={transparent}>
+                  <ActivityIndicator accessible={false} testID={testID} />
                 </View>
               )
             } else if (!isLoadingMore && !isEndOfResults) {
@@ -151,12 +166,12 @@ export const PVFlatList = (props: Props) => {
           onEndReachedThreshold={onEndReachedThreshold}
           {...(onRefresh
             ? {
-                refreshControl: <RefreshControl 
-                                  refreshing={isRefreshing} 
-                                  onRefresh={onRefresh} 
-                                  tintColor={globalTheme.activityIndicator.color}
-                                />,
-                
+                refreshControl: 
+                  <RefreshControl 
+                    refreshing={isRefreshing} 
+                    onRefresh={onRefresh} 
+                    tintColor={globalTheme.activityIndicator.color}
+                  />
               }
             : {})}
           renderHiddenItem={renderHiddenItem || _renderHiddenItem}

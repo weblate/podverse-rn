@@ -10,7 +10,6 @@ import {
 } from '../components'
 import { translate } from '../lib/i18n'
 import { alertIfNoNetworkConnection } from '../lib/network'
-import { testProps } from '../lib/utility'
 import { PV } from '../resources'
 import { trackPageView } from '../services/tracking'
 import { getAuthUserInfo } from '../state/actions/auth'
@@ -42,9 +41,11 @@ export class EditProfileScreen extends React.Component<Props, State> {
   }
 
   static navigationOptions = ({ navigation }) => ({
-      title: translate('Edit Profile'),
+      title: translate('Edit My Profile'),
       headerRight: () => (
         <NavHeaderButtonText
+          accessibilityHint={translate('ARIA HINT - save these changes to your profile')}
+          accessibilityLabel={translate('Save')}
           handlePress={navigation.getParam('updateUser')}
           testID={testIDPrefix}
           text={translate('Save')}
@@ -61,7 +62,7 @@ export class EditProfileScreen extends React.Component<Props, State> {
     }
     this.setState({ isLoading: false })
 
-    trackPageView('/edit-profile', 'Edit Profile Screen')
+    trackPageView('/edit-profile', 'Edit My Profile Screen')
   }
 
   _updateUser = async () => {
@@ -129,10 +130,13 @@ export class EditProfileScreen extends React.Component<Props, State> {
     }
 
     return (
-      <View style={styles.view} {...testProps('edit_profile_screen_view')}>
+      <View
+        style={styles.view}
+        testID='edit_profile_screen_view'>
         {!isLoading ? (
-          <View>
+          <>
             <TextInput
+              accessibilityHint={translate('ARIA HINT - This is your profile name edit')}
               autoCapitalize='none'
               autoCompleteType='off'
               fontSizeLargestScale={PV.Fonts.largeSizes.md}
@@ -145,6 +149,7 @@ export class EditProfileScreen extends React.Component<Props, State> {
               value={name}
             />
             <DropdownButtonSelect
+              accessibilityHint={selectedIsPublicOption.label}
               helpText={helpText}
               items={isPublicOptions}
               label={selectedIsPublicOption.label}
@@ -153,7 +158,7 @@ export class EditProfileScreen extends React.Component<Props, State> {
               value={selectedIsPublicKey}
               wrapperStyle={styles.dropdownButtonSelectWrapper}
             />
-          </View>
+          </>
         ) : (
           <ActivityIndicator fillSpace testID={testIDPrefix} />
         )}
