@@ -117,6 +117,7 @@ export interface InitialState {
     showMiniPlayer: boolean
     shouldContinuouslyPlay: boolean
     playbackState: any
+    isLiveStream: boolean
     sleepTimer: {
       defaultTimeRemaining: number
       isActive: boolean
@@ -168,7 +169,6 @@ export interface InitialState {
     selectedItem?: any
     selectedSortLabel?: string | null
     showDeleteConfirmDialog: boolean
-    showFullClipInfo: boolean
     showHeaderActionSheet: boolean
     showMoreActionSheet: boolean
     showNoInternetConnectionMessage: boolean

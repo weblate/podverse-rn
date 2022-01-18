@@ -41,6 +41,7 @@ const initialTheme: InitialState = {
     showMakeClip: false,
     showMiniPlayer: false,
     playbackState: null,
+    isLiveStream: false,
     sleepTimer: {
       defaultTimeRemaining: PV.Player.defaultSleepTimerInSeconds,
       isActive: false,
@@ -90,7 +91,6 @@ const initialTheme: InitialState = {
     querySort: PV.Filters._topPastWeek,
     selectedFromLabel: '',
     showDeleteConfirmDialog: false,
-    showFullClipInfo: false,
     showHeaderActionSheet: false,
     showMoreActionSheet: false,
     showNoInternetConnectionMessage: false,

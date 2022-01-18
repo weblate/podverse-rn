@@ -80,16 +80,10 @@ export const playerUpdatePlayerState = (item: NowPlayingItem, callback?: any) =>
       episode,
       ...(!item.clipId ? { mediaRef } : { mediaRef: null }),
       nowPlayingItem: item,
-      videoInfo
+      videoInfo,
+      isLiveStream: false /* TODO: add check for isLiveStream */
     }
   } as any
-
-  if (!item.clipId) {
-    newState.screenPlayer = {
-      ...globalState.screenPlayer,
-      showFullClipInfo: false
-    }
-  }
 
   setGlobal(newState, callback)
 }
@@ -104,21 +98,8 @@ export const playerClearNowPlayingItem = async () => {
       nowPlayingItem: null,
       playbackState: null,
       showMiniPlayer: false,
-      videoInfo: videoStateClearVideoInfo()
-    },
-    screenPlayer: {
-      ...globalState.screenPlayer,
-      showFullClipInfo: false
-    }
-  })
-}
-
-export const hideMiniPlayer = () => {
-  const globalState = getGlobal()
-  setGlobal({
-    player: {
-      ...globalState.player,
-      showMiniPlayer: false
+      videoInfo: videoStateClearVideoInfo(),
+      isLiveStream: false
     }
   })
 }

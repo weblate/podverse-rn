@@ -241,11 +241,11 @@ export class QueueScreen extends React.Component<Props, State> {
     return (
       <View transparent={isTransparent}>
         <QueueTableCell
-          clipEndTime={item.clipEndTime}
-          clipStartTime={item.clipStartTime}
-          {...(item.clipTitle ? { clipTitle: item.clipTitle } : {})}
-          {...(item.episodePubDate ? { episodePubDate: item.episodePubDate } : {})}
-          {...(item.episodeTitle ? { episodeTitle: item.episodeTitle } : {})}
+          clipEndTime={item?.clipEndTime}
+          clipStartTime={item?.clipStartTime}
+          {...(item?.clipTitle ? { clipTitle: item.clipTitle } : {})}
+          {...(item?.episodePubDate ? { episodePubDate: item.episodePubDate } : {})}
+          {...(item?.episodeTitle ? { episodeTitle: item.episodeTitle } : {})}
           handleRemovePress={() => {
             this._handleRemoveHistoryItemPress(item)
           }}
@@ -254,7 +254,7 @@ export class QueueScreen extends React.Component<Props, State> {
               this._handlePlayItem(item)
             }
           }}
-          podcastImageUrl={item.podcastImageUrl}
+          podcastImageUrl={item?.podcastImageUrl}
           {...(item?.podcastTitle ? { podcastTitle: item.podcastTitle } : {})}
           showRemoveButton={isEditing}
           testID={`${testIDPrefix}_history_item_${index}`}

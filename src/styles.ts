@@ -732,6 +732,11 @@ export const sliderStyles = StyleSheet.create({
     marginVertical: 4,
     zIndex: -1
   },
+  liveText: {
+    color: PV.Colors.skyLight,
+    fontSize: PV.Fonts.sizes.xs,
+    fontWeight: PV.Fonts.weights.bold
+  },
   thumbStyle: {
     borderRadius: 6,
     height: 12,

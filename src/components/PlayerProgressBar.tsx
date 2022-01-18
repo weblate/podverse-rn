@@ -107,7 +107,8 @@ export function PlayerProgressBar(props: Props) {
   const { position } = useProgress()
   const { duration } = useProgress()
   const [player] = useGlobal('player')
-  const { videoDuration, videoPosition } = player.videoInfo
+  const { isLiveStream, videoInfo } = player
+  const { videoDuration, videoPosition } = videoInfo
 
   const backgroundColorInterpolator = localState.clipColorAnimation.interpolate({
     inputRange: [0, 1],
@@ -147,6 +148,12 @@ export function PlayerProgressBar(props: Props) {
       )
     }
   }
+
+  const durationTextNode = !isLiveStream && parentScopeDuration > 0
+    ? convertSecToHHMMSS(parentScopeDuration)
+    : isLiveStream
+      ? 'LIVE'
+      : '--:--'
 
   return (
     <View style={sliderStyles.wrapper}>
@@ -188,7 +195,7 @@ export function PlayerProgressBar(props: Props) {
         }}
         thumbStyle={sliderStyles.thumbStyle}
         thumbTintColor={PV.Colors.white}
-        value={newProgressValue}
+        value={isLiveStream ? 0 : newProgressValue}
       />
       {!isLoading ? (
         <View style={sliderStyles.timeRow}>
@@ -205,8 +212,8 @@ export function PlayerProgressBar(props: Props) {
             accessibilityLabel={duration > 0 ? convertSecToHHMMSS(parentScopeDuration) : translate('Unknown duration')}
             fontSizeLargerScale={PV.Fonts.largeSizes.lg}
             fontSizeLargestScale={PV.Fonts.largeSizes.md}
-            style={sliderStyles.time}>
-            {parentScopeDuration > 0 ? convertSecToHHMMSS(parentScopeDuration) : '--:--'}
+            style={isLiveStream ? sliderStyles.liveText : sliderStyles.time}>
+            {durationTextNode}
           </Text>
         </View>
       ) : (
