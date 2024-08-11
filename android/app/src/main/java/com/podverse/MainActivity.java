@@ -7,13 +7,18 @@ import com.facebook.react.bridge.WritableNativeMap;
 import android.os.Build;
 import android.os.Bundle;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import org.jetbrains.annotations.Nullable;
 
 public class MainActivity extends ReactActivity {
     /**
@@ -23,6 +28,15 @@ public class MainActivity extends ReactActivity {
     @Override
     protected String getMainComponentName() {
         return "podverse";
+    }
+
+    @Override
+    public Intent registerReceiver(@Nullable BroadcastReceiver receiver, IntentFilter filter) {
+      if (Build.VERSION.SDK_INT >= 34 && getApplicationInfo().targetSdkVersion >= 34) {
+        return super.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+      } else {
+        return super.registerReceiver(receiver, filter);
+      }
     }
 
     @Override
